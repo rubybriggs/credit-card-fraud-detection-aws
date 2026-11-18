@@ -1,0 +1,181 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Fraud Detection ML Stack (Phase 5 IaC)",
+  "Parameters": {
+    "Environment": {
+      "Type": "String",
+      "Default": "prod",
+      "AllowedValues": [
+        "dev",
+        "staging",
+        "prod"
+      ]
+    },
+    "EndpointInstanceCount": {
+      "Type": "Number",
+      "Default": 3,
+      "Description": "3x for 100ms p99 SLA"
+    },
+    "EndpointInstanceType": {
+      "Type": "String",
+      "Default": "ml.c5.xlarge"
+    }
+  },
+  "Resources": {
+    "KMSKey": {
+      "Type": "AWS::KMS::Key",
+      "Properties": {
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:root"
+                }
+              },
+              "Action": "kms:*",
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    },
+    "DataBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": {
+          "Fn::Sub": "fraud-detection-processed-${AWS::AccountId}-${Environment}"
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "aws:kms",
+                "KMSMasterKeyID": {
+                  "Fn::GetAtt": [
+                    "KMSKey",
+                    "Arn"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        }
+      }
+    },
+    "ArtifactsBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": {
+          "Fn::Sub": "fraud-detection-artifacts-${AWS::AccountId}-${Environment}"
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "aws:kms",
+                "KMSMasterKeyID": {
+                  "Fn::GetAtt": [
+                    "KMSKey",
+                    "Arn"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        }
+      }
+    },
+    "ModelPackageGroup": {
+      "Type": "AWS::SageMaker::ModelPackageGroup",
+      "Properties": {
+        "ModelPackageGroupName": "fraud-detection-models",
+        "ModelPackageGroupDescription": "Fraud detection model package group"
+      }
+    },
+    "Model": {
+      "Type": "AWS::SageMaker::Model",
+      "Properties": {
+        "ModelName": "fraud-detection-xgboost-model",
+        "ExecutionRoleArn": {
+          "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/service-role/AmazonSageMakerAdminIAMExecutionRole"
+        },
+        "PrimaryContainer": {
+          "Image": "156813124566.dkr.ecr.us-east-1.amazonaws.com/sagemaker-xgboost:1.7-1-cpu-py3",
+          "ModelDataUrl": {
+            "Fn::Sub": "s3://${ArtifactsBucket}/endpoint/native/native_model.tar.gz"
+          }
+        }
+      }
+    },
+    "EndpointConfig": {
+      "Type": "AWS::SageMaker::EndpointConfig",
+      "Properties": {
+        "EndpointConfigName": "fraud-detection-endpoint-config",
+        "ProductionVariants": [
+          {
+            "VariantName": "primary",
+            "ModelName": {
+              "Ref": "Model"
+            },
+            "InitialInstanceCount": {
+              "Ref": "EndpointInstanceCount"
+            },
+            "InstanceType": {
+              "Ref": "EndpointInstanceType"
+            }
+          }
+        ]
+      }
+    },
+    "Endpoint": {
+      "Type": "AWS::SageMaker::Endpoint",
+      "Properties": {
+        "EndpointName": "fraud-detection-endpoint-native",
+        "EndpointConfigName": {
+          "Ref": "EndpointConfig"
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "KMSKeyArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "KMSKey",
+          "Arn"
+        ]
+      }
+    },
+    "DataBucketName": {
+      "Value": {
+        "Ref": "DataBucket"
+      }
+    },
+    "ArtifactsBucketName": {
+      "Value": {
+        "Ref": "ArtifactsBucket"
+      }
+    },
+    "EndpointName": {
+      "Value": {
+        "Ref": "Endpoint"
+      }
+    }
+  }
+}
