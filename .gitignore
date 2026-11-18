@@ -1,0 +1,22 @@
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data and Model Artifacts (DO NOT PUSH)
+*.csv
+*.parquet
+*.tar.gz
+*.joblib
+model_pkg/
+xgboost-model
+endpoint_model.tar.gz
+native_model.tar.gz
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE
+.vscode/
+.idea/
