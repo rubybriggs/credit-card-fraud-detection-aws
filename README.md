@@ -1,0 +1,7 @@
+Credit-Card Fraud Detection on AWS SageMaker — End-to-End, Governed ML System
+Built a production-grade fraud detection pipeline from raw CSV to MRM-approved deployment:
+  Phases 1-2: Ingested and masked transaction data, engineered 31 features (PCA + time-based), split into train/test with temporal ordering.
+  Phase 3: SageMaker Pipeline with Bayesian hyperparameter tuning and automated quality gates (PR-AUC ≥ 0.75, F1 ≥ 0.70). A sub-threshold model (F1 0.678) was correctly blocked by the gates; the tuned model (PR-AUC 0.759, F1 0.788, Recall@5% 0.885) cleared both and was registered with full lineage.
+  Phase 4: Deployed a native XGBoost real-time endpoint (C++ inference) with data capture. Load-tested (600 req @ 20 concurrency): p99 = 349.9ms on 1× ml.c5.xlarge — not met on a single instance (queueing overhead, not model cost). Model held at PendingManualApproval with documented remediation: scale to 3× ml.c5.xlarge in prod. Drift monitoring operational via on-demand ProcessingJob (AWS deprecated CreateMonitoringSchedule for new accounts; ProcessingJob is the supported alternative).
+  Phase 5: CloudFormation IaC, cross-region DR plan (RTO 4h / RPO 1h), four operational runbooks, and a complete MRM handoff package. All version-controlled on GitHub with .gitignore preventing data/model artifact leakage.
+Key governance win: The system refused to approve a model that broke its SLA. That's the whole point of MLOps.
